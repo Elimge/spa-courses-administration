@@ -1,0 +1,99 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "email": "admin@academy.com",
+      "password": "admin123",
+      "role": "administrator"
+    },
+    {
+      "id": 2,
+      "email": "student@academy.com",
+      "password": "student123",
+      "role": "student"
+    },
+    {
+      "id": 3,
+      "email": "student2@academy.com",
+      "password": "student123",
+      "role": "student"
+    },
+    {
+      "email": "student3@academy.com",
+      "password": "admin1234",
+      "role": "student",
+      "id": 4
+    },
+    {
+      "email": "students4@academy.com",
+      "password": "1234",
+      "role": "student",
+      "id": 5
+    }
+  ],
+  "instructors": [
+    {
+      "id": 1,
+      "name": "Raymond Ayala"
+    },
+    {
+      "id": 2,
+      "name": "Benito Martinez"
+    }
+  ],
+  "courses": [
+    {
+      "id": 1,
+      "title": "Modern Javascript from Scratch",
+      "description": "A comprehesive course on modern Javascript (ES6+).",
+      "category": "Programming",
+      "capacity": "25",
+      "instructorId": "2",
+      "enrolledStudents": [
+        5
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Basic programming with Python",
+      "description": "Fundamentals of Python",
+      "category": "Programming",
+      "capacity": "10",
+      "instructorId": "1",
+      "enrolledStudents": [
+        2,
+        5
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Learning Java with Springboot",
+      "description": "Advanced programming for servers",
+      "category": "Programming Backend",
+      "capacity": "2",
+      "instructorId": "2",
+      "enrolledStudents": [
+        2,
+        5
+      ]
+    },
+    {
+      "title": "Node.js Advanced",
+      "description": "Backend programming with Node.js",
+      "category": "Programming Backend",
+      "capacity": "2",
+      "instructorId": "1",
+      "enrolledStudents": [],
+      "id": 4
+    },
+    {
+      "title": "Learning Basics of UX/UI Design",
+      "description": "Learn bases of UX/UI Designer",
+      "category": "Graphic Design",
+      "capacity": 10,
+      "instructorId": 1,
+      "enrolledStudents": [],
+      "id": 5
+    }
+  ]
+}

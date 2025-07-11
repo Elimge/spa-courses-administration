@@ -1,0 +1,34 @@
+<!------- Tasks ------->
+<h1>Course Management (Admin)</h1>
+<div id="course-list">
+    <!-- Courses will be rendered here by JavaScript -->
+</div>
+
+<h2>Create New Course</h2>
+<form id="course-form">
+    <div>
+        <label for="course-title">Title:</label>
+        <input type="text" id="course-title" required>
+    </div>
+    <div>
+        <label for="course-description">Description:</label>
+        <textarea id="course-description" required></textarea>
+    </div>
+    <div>
+        <label for="course-category">Category:</label>
+        <input type="text" id="course-category" required>
+    </div>
+    <div>
+        <label for="course-capacity">Capacity:</label>
+        <input type="number" id="course-capacity" required min="1">
+    </div>
+<div>
+    <label for="course-instructor">Instructor:</label>
+    <select id="course-instructor" required>
+        <option value="">-- Please choose an instructor --</option>
+        <!-- Instructor options will be dynamically inserted here -->
+    </select>
+</div>
+    <button type="submit">Create Course</button>
+</form>
+
