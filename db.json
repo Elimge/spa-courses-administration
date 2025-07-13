@@ -29,6 +29,12 @@
       "password": "1234",
       "role": "student",
       "id": 5
+    },
+    {
+      "email": "student5@academy.com",
+      "password": "12345",
+      "role": "student",
+      "id": 6
     }
   ],
   "instructors": [
@@ -43,57 +49,36 @@
   ],
   "courses": [
     {
-      "id": 1,
-      "title": "Modern Javascript from Scratch",
-      "description": "A comprehesive course on modern Javascript (ES6+).",
-      "category": "Programming",
-      "capacity": "25",
-      "instructorId": "2",
-      "enrolledStudents": [
-        5
-      ]
-    },
-    {
-      "id": 2,
-      "title": "Basic programming with Python",
-      "description": "Fundamentals of Python",
-      "category": "Programming",
-      "capacity": "10",
-      "instructorId": "1",
-      "enrolledStudents": [
-        2,
-        5
-      ]
-    },
-    {
-      "id": 3,
-      "title": "Learning Java with Springboot",
-      "description": "Advanced programming for servers",
-      "category": "Programming Backend",
-      "capacity": "2",
-      "instructorId": "2",
-      "enrolledStudents": [
-        2,
-        5
-      ]
-    },
-    {
-      "title": "Node.js Advanced",
-      "description": "Backend programming with Node.js",
-      "category": "Programming Backend",
-      "capacity": "2",
-      "instructorId": "1",
-      "enrolledStudents": [],
-      "id": 4
-    },
-    {
       "title": "Learning Basics of UX/UI Design",
       "description": "Learn bases of UX/UI Designer",
       "category": "Graphic Design",
-      "capacity": 10,
-      "instructorId": 1,
-      "enrolledStudents": [],
+      "capacity": "10",
+      "instructorId": "2",
+      "enrolledStudents": [
+        5,
+        2
+      ],
       "id": 5
+    },
+    {
+      "title": "Modern Javascript from Scratch",
+      "description": "Learning foundamentals of javascript to master",
+      "category": "Programming",
+      "capacity": "1",
+      "instructorId": "2",
+      "enrolledStudents": [
+        5
+      ],
+      "id": 6
+    },
+    {
+      "title": "Java Springboot Course",
+      "description": "A advanced route for backend developer",
+      "category": "Programming Backend",
+      "capacity": "10",
+      "instructorId": "1",
+      "enrolledStudents": [],
+      "id": 7
     }
   ]
 }

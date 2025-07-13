@@ -5,7 +5,13 @@ import { isAuthenticated, logOut, getCurrentUser} from "./auth.js";
 import { getAllCourses, createCourse, deleteCourse, getAllInstructors, enrollInCourse, updateCourse, unenrollFromCourse } from "./controllers/courseController.js";
 import Course from "./models/course.js";
 
-// --- ROUTES MAPPING ---
+// --- MODULE-LEVEL VARIABLES ---
+
+/**
+ * Maps URL paths to their corresponding HTML view files.
+ * This object acts as the single source of truth for routing configuration.
+ * @type {Object.<string, string>}
+ */
 const routes = {
     "/": "src/views/home.html",
     "/login": "src/views/login.html",
@@ -15,14 +21,18 @@ const routes = {
     "/404": "src/views/404.html",
 }
 
-// The main container element where the views will be injected.
+/**
+ * The main DOM element where all views will be rendered.
+ * @type {HTMLElement}
+ */
 const appRoot = document.getElementById("app-root"); 
 
 // --- Core Router Functions ---
 
-/** 
- * Loads a view"s HTML content into the app-root element.
- * @param {string} viewPath - The path to the HTML view file.
+/**
+ * Fetches the HTML content of a view and injects it into the app's root container.
+ * If the view cannot be fetched, it loads the 404 page as a fallback.
+ * @param {string} viewPath - The path to the HTML view file (e.g., "src/views/login.html").
  */
 async function loadView(viewPath) {
     try {
@@ -33,7 +43,7 @@ async function loadView(viewPath) {
         appRoot.innerHTML = html;
     } catch (error) {
         console.error("Failed to load view: ", error);
-        // On error, load the 404 page by fetching its content
+        // Fallback to 404 page on any error
         const response404 = await fetch(routes["/404"]);
         appRoot.innerHTML = await response404.text();
     }
@@ -57,6 +67,7 @@ function initializeLoginForm() {
         const success = await handleLogin(email, password); 
 
         if (success) {
+            renderNavbar();
             // On successful login, navigate to the main dashboard
             navigateTo("/tasks");
         } else {
@@ -125,9 +136,11 @@ async function initializeTasksView(user) {
             courseElement.innerHTML = `
                 <h3>${course.title}</h3>
                 <p>${course.description}</p>
-                <p>Category: ${course.category}</p>
-                <button class="edit-btn" data-id="${course.id}">Edit</button>
-                <button class="delete-btn" data-id="${course.id}">Delete</button>
+                <p><strong>Category:</strong> ${course.category}</p>
+                <div class="actions">
+                    <button class="edit-btn" data-id="${course.id}">Edit</button>
+                    <button class="delete-btn" data-id="${course.id}">Delete</button>
+                </div>
             `;
             courseListElement.appendChild(courseElement);
         });
@@ -159,6 +172,9 @@ async function initializeTasksView(user) {
             
                 // Change the text on the form button
                 courseForm.querySelector("button[type='submit']").textContent = "Update Course";
+
+                // Scroll to edit box
+                courseForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
             // Check if cancel button already exists to avoid duplicates
             if (!courseForm.querySelector(".cancel-btn")) {
@@ -297,11 +313,13 @@ async function initializeStudentDashboard(user) {
             courseCard.innerHTML = `
                 <h3>${course.title}</h3>
                 <p>${course.description}</p>
-                <p>Enrolled: ${course.enrolledStudents.length} / ${course.capacity}</p>
-                <button class="enroll-btn" data-course-id="${course.id}" 
-                    ${isEnrolled || !hasCapacity ? "disabled" : ""}>
-                    ${isEnrolled ? "Already Enrolled" : (hasCapacity ? "Enroll" : "Full")}
-                </button>
+                <p><strong>Enrolled:<strong> ${course.enrolledStudents.length} / ${course.capacity}</p>
+                <div class="actions">
+                    <button class="enroll-btn" data-course-id="${course.id}" 
+                        ${isEnrolled || !hasCapacity ? "disabled" : ""}>
+                        ${isEnrolled ? "Already Enrolled" : (hasCapacity ? "Enroll" : "Full")}
+                    </button>
+                </div>
             `;
             availableCoursesElement.appendChild(courseCard);
         });
@@ -388,10 +406,19 @@ async function initializeStudentDashboard(user) {
  * Handles the routing logic based on the current URL patch.
  * It acts as a bouncer, checking credentials before loading a view
  */
-async function handleLocation() {
+export async function handleLocation() {
+    renderNavbar();
     const path = window.location.pathname;
     const isAuth = isAuthenticated();
     const user = getCurrentUser();
+
+    // Body classes
+    const body = document.body;
+    if (path === '/tasks' || path === '/student-dashboard') {
+        body.classList.add('dashboard-view');
+    } else {
+        body.classList.remove('dashboard-view');
+    }
 
     // --- AUTHENTICATION GUARDS ---
     // If isn"t authenticated can"t look the protected views.
@@ -461,12 +488,48 @@ async function handleLocation() {
             logoutBtn.textContent = "Logout";
             logoutBtn.addEventListener("click", () => {
                 logOut();
+                renderNavbar();
                 navigateTo("/login");
             });
             // Add it to the top of the main container.
             appRoot.prepend(logoutBtn);
         }
     }
+}
+
+/**
+ * Renders the main navigation bar based on authentication status and user role.
+ */
+function renderNavbar() {
+    const nav = document.getElementById('main-nav');
+    if (!nav) return;
+
+    const isAuth = isAuthenticated();
+    const user = getCurrentUser();
+
+    let navLinks = ''; // Start with an empty string of HTML links
+
+    if (isAuth) {
+        // --- Navigation for LOGGED-IN users ---
+        navLinks += `<a href="/">Home</a> | `;
+        
+        if (user.role === 'administrator') {
+            navLinks += `<a href="/tasks">Course Management</a> | `;
+        } else if (user.role === 'student') {
+            navLinks += `<a href="/student-dashboard">My Dashboard</a> | `;
+        }
+
+        // The logout button is handled separately by handleLocation
+        // but you could also add a placeholder here if you wanted.
+
+    } else {
+        // --- Navigation for GUEST users ---
+        navLinks += `<a href="/">Home</a> | `;
+        navLinks += `<a href="/login">Login</a> | `;
+        navLinks += `<a href="/register">Register</a>`;
+    }
+
+    nav.innerHTML = navLinks;
 }
 
 /** 
@@ -483,23 +546,24 @@ export function navigateTo(path) {
 /**
  * Initializes the router by setting up event listeners.
  */
-export function initializeRouter() {
-    // Listen for clicks on any link in the document.
-    document.addEventListener("click", e => {
-        // Check if the clicked element is a link.
-        if (e.target.matches("a[href]")) {
-            e.preventDefault(); // Prevent the default browser navigation (full reload).
-            navigateTo(e.target.getAttribute("href")); // Use our custom navigation.
-        }
-    });
+// export function initializeRouter() {
+//     // Listen for clicks on any link in the document.
+//     document.addEventListener("click", e => {
+//         // Check if the clicked element is a link.
+//         if (e.target.matches("a[href]")) {
+//             e.preventDefault(); // Prevent the default browser navigation (full reload).
+//             navigateTo(e.target.getAttribute("href")); // Use our custom navigation.
+//         }
+//     });
 
-    // Handle browser back/forward buttons.
-    window.addEventListener("popstate", handleLocation);
+//     // Handle browser back/forward buttons.
+//     window.addEventListener("popstate", handleLocation);
 
-    // Use DOMContentLoaded to ensure the app-root element exists before we start
-    document.addEventListener("DOMContentLoaded", () => {
-        handleLocation();
-    });
-}
+//     // Use DOMContentLoaded to ensure the app-root element exists before we start
+//     document.addEventListener("DOMContentLoaded", () => {
+//         handleLocation();
+//     });
+// }
+// INITIALIZE NOW EN MAIN.JS
 
 

@@ -1,10 +1,28 @@
 
-// Import the main stylesheet 
+// Imports
 import "./style.css";
-import { initializeRouter } from "./router.js";
+import { handleLocation, navigateTo } from "./router.js";
 
 // Initialize the roter to handle navigation 
-initializeRouter();
+function initializeApp () {
+    //
+    document.addEventListener("click", e => {
+        // Prevent the recharge of the webpage
+        if (e.target.matches("a[href]")) {
+            e.preventDefault();
+            navigateTo(e.target.getAttribute("href"));
+        }
+    });
 
-console.log("Router initialized."); 
+    // Listen the history behind back/forward
+    window.addEventListener("popstate", handleLocation);
 
+    // Handle the initial charge of the webpage 
+    document.addEventListener("DOMContentLoaded", () => {
+        handleLocation();
+    })
+
+    console.log("Application Initialized and listeners are set up.");
+}
+
+initializeApp();
