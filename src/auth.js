@@ -28,14 +28,16 @@ export function logOut() {
  * @returns {boolean} - True if user info exists in localStorage.
  */
 export function isAuthenticated() {
+    // A user is considered authenticated if the user info key exists.
     return localStorage.getItem(USER_INFO_KEY) !== null;
 }
 
 /**
- * Gets the currently logged-in user's information.
- * @returns {object|null} - The user object or null if not logged in.
+ * Retrieves the currently logged-in user's information.
+ * @returns {object|null} The user object (id, email, role) if logged in, or null if not.
  */
 export function getCurrentUser() {
     const userJson = localStorage.getItem(USER_INFO_KEY);
+    // Parse the JSON string back into an object. Return null if no user data is found.
     return userJson ? JSON.parse(userJson) : null; 
 }

@@ -43,21 +43,21 @@ To get a local copy up and running, follow these simple steps.
 
 ### Prerequisites
 
-- Node.js (v18 or later recommended)
+- Node.js (v22 or later recommended)
 - npm (comes with Node.js)
-- `json-server` installed globally:
 
-  ```bash
-  npm install -g json-server
-  ```
 
 ### Installation & Setup
 
-1.  **Download the repository:**
-  spa-courses-administration.zip
+1.  **Clone the repository:**
+  ```bash
+  git clone https://github.com/Elimge/spa-courses-administration.git
+    cd spa-courses-administration
+  ```
 
 
-2.  **Install NPM packages:**
+2.  **Install dependencies:**
+ This will install Vite and `json-server` locally for the project.
   ```bash
   npm install
   ```
@@ -81,12 +81,12 @@ Open your browser and navigate to the local URL provided by Vite (e.g., http://l
 
 You can use the following pre-configured users from db.json to test the application:
 
-* Administrator:
-    * Email: admin@academy.com
-    * Password: admin123
-* Student:
-    * Email: student1@academy.com
-    * Password: student123
+Use the following pre-configured users from `db.json` to test the application:
+
+| Role          | Email                 | Password   |
+| :------------ | :-------------------- | :--------- |
+| Administrator | `admin@academy.com`   | `admin123` |
+| Student       | `student@academy.com` | `student123` |
 
 You can also register new student accounts through the /register page.
 
@@ -117,9 +117,10 @@ You can also register new student accounts through the /register page.
     │   ├── authController.js
     │   └── courseController.js
     │
-    ├── models/
-    │   └── course.js
-    │
+    ├── models/-
+    │   ├── course.js
+    │   └── user.js
+    │ 
     └── views/
         ├── 404.html
         ├── home.html
