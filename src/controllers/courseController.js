@@ -140,6 +140,5 @@ export async function enrollInCourse(courseId, newStudentList) {
  */
 export async function unenrollFromCourse(courseId, newStudentList) {
     // The underlying API call is the same as enrolling, just with a different student list.
-    // Reusing the function avoids code duplication.
     return enrollInCourse(courseId, newStudentList); 
 }

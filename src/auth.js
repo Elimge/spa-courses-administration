@@ -1,13 +1,26 @@
 
-// This file only manages the user's session state in localStorage.
+/**
+ * @file This module acts as a session management service.
+ * It provides a simple API to handle user authentication state
+ * by interacting with the browser's localStorage.
+ * It abstracts away the direct manipulation of localStorage.
+ */
 
+/**
+ * The key used to store user information in localStorage.
+ * Using a constant prevents typos and makes it easy to change if needed.
+ * @type {string}
+ */
 const USER_INFO_KEY = "loggedInUser"; 
 
 /**
- * Saves user information to localStorage after removing the password.
- * @param {object} user - The full user object from API.
+ * Saves user information to localStorage.
+ * The password is deliberately omitted for security best practices.
+ * We should never store sensitive information like passwords in localStorage.
+ * @param {object} user - The full user object received from the API.
  */
 export function saveUserInfo(user) {
+    // Create a new object with only the necessary, non-sensitive user data.
     const userToStore = {
         id: user.id,
         email: user.email,
@@ -17,15 +30,15 @@ export function saveUserInfo(user) {
 }
 
 /**
- * Logs the user out by clearing their info from localStorage.
+ * Logs the user out by removing their information from localStorage.
  */
 export function logOut() {
     localStorage.removeItem(USER_INFO_KEY);
 }
 
-/** 
- * Checks if a user is currently logged in.
- * @returns {boolean} - True if user info exists in localStorage.
+/**
+ * Checks if a user is currently authenticated.
+ * @returns {boolean} True if user information exists in localStorage, false otherwise.
  */
 export function isAuthenticated() {
     // A user is considered authenticated if the user info key exists.

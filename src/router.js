@@ -27,7 +27,7 @@ const routes = {
  */
 const appRoot = document.getElementById("app-root"); 
 
-// --- Core Router Functions ---
+// --- CORE ROUTER LOGIC ---
 
 /**
  * Fetches the HTML content of a view and injects it into the app's root container.
@@ -50,8 +50,119 @@ async function loadView(viewPath) {
 }
 
 /**
- * Initializes the logic for the login form.
- * This function should be called AFTER a view with the login form is loaded.
+ * Navigates the SPA to a new path without a full page reload.
+ * It updates the browser's history and then triggers the location handler.
+ * @param {string} path - The destination path (e.g., "/login").
+ */
+export function navigateTo(path) {
+    // Update the browser URL without reloading the page
+    window.history.pushState({}, "", path); 
+    // Manually call the location handler to process the new route 
+    handleLocation();
+}
+
+/**
+ * The main routing function. It determines the current path, checks user
+ * authentication and roles, and then loads the appropriate view and its
+ * associated logic. This function acts as the central controller for the application's UI.
+ */
+export async function handleLocation() {
+    const path = window.location.pathname;
+    const isAuth = isAuthenticated();
+    const user = getCurrentUser();
+
+    // Dynamically update the navbar and body class on every route change
+    renderNavbar();
+    updateBodyClass(path);
+
+    // --- AUTHENTICATION GUARDS ---
+    // Protect routes based on authentication status.
+
+    // Unauthenticated users trying to access protected routes
+    if (!isAuth && (path === "/tasks" || path === "/student-dashboard")) {
+        console.log("Access Denied: Not authenticated. Redirecting to /login.");
+        navigateTo("/login");
+        return; // Stop execution to allow redirection to complete
+    }
+    // Authenticated users trying to access guest-only routes (login/register)
+    if (isAuth && (path === "/login" || path === "/register")) {
+        console.log("Access Denied: Already authenticated. Redirecting to dashboard.");
+        navigateTo("/tasks"); // Redirect to the generic '/tasks' and let it resolve to the correct dashboard
+        return; // Stop execution
+    }
+
+    // --- ROUTE RESOLUTION ---
+    // Determine which view to load based on the path and user role.
+    let viewPath;
+    let viewInitializer = null; // A function to run after the view is loaded
+
+    switch (path) {
+        case "/":
+        case "/home": // Allow /home as an alias for the root
+            viewPath = routes["/"];
+            break;
+
+        case "/login":
+            viewPath = routes["/login"];
+            viewInitializer = initializeLoginForm;
+            break;
+
+        case "/register":
+            viewPath = routes["/register"];
+            viewInitializer = initializeRegisterForm;
+            break;
+
+        case "/tasks":
+            // This route is role-dependent
+            if (isAuth && user.role === "administrator") {
+                viewPath = routes["/tasks"];
+                viewInitializer = () => initializeTasksView(user);
+            } else if (isAuth && user.role === "student") {
+                // Students are automatically redirected from the generic /tasks to their specific dashboard
+                navigateTo("/student-dashboard");
+                return; // Stop execution to allow the new navigation to take over
+            }
+            break;
+
+        case "/student-dashboard":
+            // This route is specifically for students
+            if (isAuth && user.role === "student") {
+                viewPath = routes["/student-dashboard"];
+                viewInitializer = () => initializeStudentDashboard(user);
+            } else {
+                // Any other user (guest or admin) trying to access this is redirected
+                navigateTo(isAuth ? "/tasks" : "/login");
+                return; // Stop execution
+            }
+            break;
+
+        default:
+            // If no other route matches, render the 404 page
+            viewPath = routes["/404"];
+            break;
+    }
+
+    // --- VIEW RENDERING AND LOGIC INITIALIZATION ---
+    await loadView(viewPath);
+    
+    // If an initializer function was assigned for the route, execute it now.
+    // This ensures that the view's HTML is in the DOM before we try to attach listeners.
+    if (viewInitializer) {
+        viewInitializer();
+    }
+
+    // Dynamically add the logout button if the user is authenticated.
+    // This is handled here to ensure it's re-evaluated on every navigation.
+    if (isAuth) {
+        addLogoutButton();
+    }
+}
+
+// --- VIEW-SPECIFIC INITIALIZERS ---
+// These functions contain the logic for a specific view. They are called by handleLocation.
+
+/**
+ * Attaches the submit event listener to the login form.
  */
 function initializeLoginForm() {
     const form = document.getElementById("login-form");
@@ -67,20 +178,21 @@ function initializeLoginForm() {
         const success = await handleLogin(email, password); 
 
         if (success) {
-            renderNavbar();
-            // On successful login, navigate to the main dashboard
-            navigateTo("/tasks");
+            navigateTo("/tasks");// Redirect to the main dashboard hub
         } else {
             alert("Invalid credentials. Please try again");
         }
     });
 }
 
+/**
+ * Attaches the submit event listener to the registration form.
+ */
 function initializeRegisterForm() {
   const form = document.getElementById("register-form");
   if (!form) return;
 
-  form.addEventListener('submit', async (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const email = form.querySelector("#register-email").value;
     const password = form.querySelector("#register-password").value;
@@ -90,44 +202,26 @@ function initializeRegisterForm() {
 
     if (success) {
       alert("Registration successful! Please log in.");
-      // On success, redirect the user to the login page
-      navigateTo("/login");
+      
+      navigateTo("/login"); // On success, redirect the user to the login page
     } 
-    // The handleRegister function already shows an alert for existing users
+    // Error alerts are handled within handleRegister
   });
 }
 
-/** 
- * Initializes all logic for the admin course management view.
+/**
+ * Initializes the entire Admin Course Management dashboard.
+ * Fetches data, renders courses, and sets up all event listeners for the view.
+ * @param {object} user - The currently logged-in administrator user object.
  */
 async function initializeTasksView(user) {
-    // --- DOM Element Selectors ---
     const courseListElement = document.getElementById("course-list");
     const courseForm = document.getElementById("course-form");
+    if (!courseListElement || !courseForm) return;  // Safety check
 
-    // Safety check
-    if (!courseListElement || !courseForm) return;
+    // --- NESTED HELPER FUNCTIONS for the Admin View ---
 
-    // Populates the instructor dropdown select element. 
-    function populateInstructorSelect(instructors) {
-        const instructorSelect = document.getElementById("course-instructor");
-        if (!instructorSelect) return;
-
-        // Clean the options first 
-        // Save the first option ("Please choose..."")
-        const placeholderOption = instructorSelect.options[0];
-        instructorSelect.innerHTML = ""; // Delete all the options
-        instructorSelect.appendChild(placeholderOption); // Add the placeholder again
-
-        instructors.forEach(instructor => {
-            const option = document.createElement("option");
-            option.value = instructor.id; // The value will be the ID
-            option.textContent = instructor.name; // The text shown will be the name
-            instructorSelect.appendChild(option);
-        });
-    }   
-
-    // --- Render Function ---
+    /** Renders the list of courses into the DOM. */
     function renderCourses(courses) {
         courseListElement.innerHTML = "";
         courses.forEach(course => { 
@@ -146,54 +240,39 @@ async function initializeTasksView(user) {
         });
     }
 
-    // --- Event Handlers ---
-    async function handleCourseListClick(event) {
-        if (event.target.matches(".delete-btn")) {
-            const courseId = event.target.dataset.id;
-            const success = await deleteCourse(courseId);
-            if (success) {
-                loadAdminDashboard(); // Reload the list
-            }
-        } else if (event.target.matches(".edit-btn")) {
-            const courseId = event.target.dataset.id;
-            // Get all the courses to find the one to edit
-            const courses = await getAllCourses();
-            const courseToEdit = courses.find(c => c.id == courseId);
-            if (courseToEdit) {
-                // Fill the form with the course data
-                document.getElementById("course-title").value = courseToEdit.title;
-                document.getElementById("course-description").value = courseToEdit.description;
-                document.getElementById("course-category").value = courseToEdit.category;
-                document.getElementById("course-capacity").value = courseToEdit.capacity;
-                document.getElementById("course-instructor").value = courseToEdit.instructorId;
-            
-                // Save the course"s ID that was editted 
-                courseForm.setAttribute("data-editing-id", courseId);
-            
-                // Change the text on the form button
-                courseForm.querySelector("button[type='submit']").textContent = "Update Course";
+    /** Populates the 'instructor' select dropdown with data from the API. */
+    function populateInstructorSelect(instructors) {
+        const instructorSelect = document.getElementById("course-instructor");
+        if (!instructorSelect) return;
 
-                // Scroll to edit box
-                courseForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-            // Check if cancel button already exists to avoid duplicates
-            if (!courseForm.querySelector(".cancel-btn")) {
-                const cancelButton = document.createElement("button");
-                cancelButton.type = "button"; // Important to prevent form submission
-                cancelButton.textContent = "Cancel";
-                cancelButton.classList.add("cancel-btn");
-        
-                cancelButton.addEventListener("click", () => {
-                resetCourseForm(); // Reset the form
-                });
+        // Clean the options first 
+        // Save the first option ("Please choose..."")
+        const placeholderOption = instructorSelect.options[0];
+        instructorSelect.innerHTML = ""; // Delete all the options
+        instructorSelect.appendChild(placeholderOption); // Add the placeholder again
 
-                // Add the cancel button next to the update button
-                courseForm.querySelector("button[type='submit']").insertAdjacentElement("afterend", cancelButton);
-            }
+        instructors.forEach(instructor => {
+            const option = document.createElement("option");
+            option.value = instructor.id; // The value will be the ID
+            option.textContent = instructor.name; // The text shown will be the name
+            instructorSelect.appendChild(option);
+        });
+    }   
+
+    /** Resets the course form to its default state after a create or update action. */
+    function resetCourseForm() {
+        courseForm.reset();
+        courseForm.removeAttribute("data-editing-id"); // Removes the editing state indicator
+        courseForm.querySelector("button[type='submit']").textContent = "Create Course"; // Resets button text
+
+        // Find and remove the cancel button if it exists
+        const cancelButton = courseForm.querySelector(".cancel-btn");
+        if (cancelButton) {
+            cancelButton.remove();
         }
     }
 
-    // Handles the submission of the new course form
+    /** Handles form submission for both creating and updating courses. */
     async function handleCourseFormSubmit(event) {
         event.preventDefault(); 
         const editingId = courseForm.dataset.editingId; // Read the ID that was saved
@@ -226,48 +305,58 @@ async function initializeTasksView(user) {
         } else {
             alert("Operation failed. Please check the console.");
         } 
-
-        // Sprint 1
-        // // Validation to ensure fields are not empty
-        // if (!title || !description || !category || !capacity || !instructorId) {
-        //     alert("Please fill out all fields.");
-        //     return; // Stop the function if validation fails
-        // }
-
-        // // Create a new instance of the Course model.
-        // const newCourse = new Course(title, description, category, capacity, instructorId);
-
-        // // Call the controller function to send the data to the API
-        // const createdCourse = await createCourse(newCourse); 
-
-        // // Handle the result
-        // if (createdCourse) {
-        //     console.log("Course created successfully: ", createdCourse);
-        //     // If the course was created, reload the list to show the new course.
-        //     loadAdminDashboard();
-        //     // Reset the form fields for the next entry.
-        //     courseForm.reset(); 
-        // } else {
-        //     // If the controller returned null, it was an error.
-        //     alert("Failed to create the course. Please check the console for errors.");
-        // }
     }
 
-    function resetCourseForm() {
-        courseForm.reset();
-        courseForm.removeAttribute("data-editing-id"); // Removes the editing state indicator
-        courseForm.querySelector("button[type='submit']").textContent = "Create Course"; // Resets button text
+    /** Handles clicks on the 'Edit' and 'Delete' buttons within the course list. */
+    async function handleCourseListClick(event) {
+        if (event.target.matches(".delete-btn")) {
+            const courseId = event.target.dataset.id;
+            const success = await deleteCourse(courseId);
+            if (success) {
+                loadAdminDashboard(); // Reload the list
+            }
+        } else if (event.target.matches(".edit-btn")) {
+            const courseId = event.target.dataset.id;
+            // Get all the courses to find the one to edit
+            const courses = await getAllCourses();
+            const courseToEdit = courses.find(c => c.id == courseId);
+            if (courseToEdit) {
+                // Fill the form with the course data
+                document.getElementById("course-title").value = courseToEdit.title;
+                document.getElementById("course-description").value = courseToEdit.description;
+                document.getElementById("course-category").value = courseToEdit.category;
+                document.getElementById("course-capacity").value = courseToEdit.capacity;
+                document.getElementById("course-instructor").value = courseToEdit.instructorId;
+            
+                // Save the course"s ID that was editted 
+                courseForm.setAttribute("data-editing-id", courseId);
+            
+                // Change the text on the form button
+                courseForm.querySelector("button[type='submit']").textContent = "Update Course";
 
-        // Find and remove the cancel button if it exists
-        const cancelButton = courseForm.querySelector(".cancel-btn");
-        if (cancelButton) {
-            cancelButton.remove();
+                // Scroll to edit box
+                courseForm.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+            // Check if cancel button already exists to avoid duplicates
+            if (!courseForm.querySelector(".cancel-btn")) {
+                const cancelButton = document.createElement("button");
+                cancelButton.type = "button"; // Important to prevent form submission
+                cancelButton.textContent = "Cancel";
+                cancelButton.classList.add("cancel-btn");
+        
+                cancelButton.addEventListener("click", () => {
+                resetCourseForm(); // Reset the form
+                });
+
+                // Add the cancel button next to the update button
+                courseForm.querySelector("button[type='submit']").insertAdjacentElement("afterend", cancelButton);
+            }
         }
     }
 
-    // --- Initial Load ---
+    /** Main function to fetch all necessary data and render the admin dashboard. */
     async function loadAdminDashboard() {
-        // We can fetch both requests in parallel for better performance!
+        // Fetch courses and instructors in parallel for better performance
         const [courses, instructors] = await Promise.all([
             getAllCourses(),
             getAllInstructors()
@@ -277,30 +366,27 @@ async function initializeTasksView(user) {
         populateInstructorSelect(instructors);
     }
 
-    // async function loadAndRenderCourses() {
-    //     const courses = await getAllCourses();
-    //     renderCourses(courses);
-    // }
-
-    // --- Attach Event Listeners ---
+    // --- ATTACH EVENT LISTENERS for the Admin View ---
     courseListElement.addEventListener("click", handleCourseListClick);
-    courseForm.addEventListener('submit', handleCourseFormSubmit);
+    courseForm.addEventListener("submit", handleCourseFormSubmit);
     
-    // Call the initial load
+    // --- INITIAL DATA LOAD ---
     loadAdminDashboard();
-    //loadAndRenderCourses();
 }
 
 /**
- * Initializes all logic for the student dashboard view.
+ * Initializes the entire Student Dashboard.
+ * Fetches all courses and renders two lists: "Available Courses" and "My Enrolled Courses".
+ * @param {object} user - The currently logged-in student user object.
  */
 async function initializeStudentDashboard(user) {
-    // --- DOM Element Selectors ---
     const availableCoursesElement = document.getElementById("student-course-list");
     const myCoursesElement = document.getElementById("my-courses-list");
     if (!availableCoursesElement || !myCoursesElement) return; 
 
-    // --- Render Functions ---
+    // --- NESTED HELPER FUNCTIONS for the Student View ---
+
+    /** Renders the list of all courses available for enrollment. */
     function renderAvailableCourses(courses, currentUser) {
         availableCoursesElement.innerHTML = "";
         courses.forEach(course => {
@@ -325,6 +411,7 @@ async function initializeStudentDashboard(user) {
         });
     }
 
+    /** Renders the list of courses the current student is enrolled in. */
     function renderMyCourses(courses, currentUser) {
         myCoursesElement.innerHTML = ""; 
         const enrolledCourses = courses.filter(course => course.enrolledStudents.includes(currentUser.id));
@@ -346,7 +433,7 @@ async function initializeStudentDashboard(user) {
         });
     }
 
-    // --- Event Handler ---
+    /** Handles the click on an 'Enroll' button. */
     async function handleEnrollClick(event) {
         if (event.target.matches(".enroll-btn")) {
             const button = event.target;
@@ -367,6 +454,7 @@ async function initializeStudentDashboard(user) {
         }
     }
 
+    /** Handles the click on an 'Unenroll' button. */
     async function handleUnenrollClick(event) {
         if (event.target.matches(".unenroll-btn")) {
             const courseId = event.target.dataset.courseId;
@@ -385,185 +473,81 @@ async function initializeStudentDashboard(user) {
         }
     }
 
-    // --- Initial load --- 
+    /** Main function to fetch data and render the student dashboard. */
     async function loadStudentDashboard() {
         const currentUser = getCurrentUser();
-        if (!currentUser) return;
+        if (!currentUser) return; // Safety check
 
         const courses = await getAllCourses();
         renderAvailableCourses(courses, currentUser);
         renderMyCourses(courses, currentUser);
     }
 
-    // Listeners
+    // --- ATTACH EVENT LISTENERS for the Student View ---
     availableCoursesElement.addEventListener("click", handleEnrollClick);
     myCoursesElement.addEventListener("click", handleUnenrollClick);
+
+    // --- INITIAL DATA LOAD ---
     loadStudentDashboard();
 }
 
+// --- UI HELPER FUNCTIONS ---
 
 /**
- * Handles the routing logic based on the current URL patch.
- * It acts as a bouncer, checking credentials before loading a view
- */
-export async function handleLocation() {
-    renderNavbar();
-    const path = window.location.pathname;
-    const isAuth = isAuthenticated();
-    const user = getCurrentUser();
-
-    // Body classes
-    const body = document.body;
-    if (path === '/tasks' || path === '/student-dashboard') {
-        body.classList.add('dashboard-view');
-    } else {
-        body.classList.remove('dashboard-view');
-    }
-
-    // --- AUTHENTICATION GUARDS ---
-    // If isn"t authenticated can"t look the protected views.
-    if (!isAuth && (path === "/tasks" || path === "/student-dashboard")) {
-        console.log("Access Denied: Not authenticated. Redirecting to /login.");
-        navigateTo("/login");
-        return; // Stop here.
-    }
-    // If is authenticated can"t look login and register views.
-    if (isAuth && (path === "/login" || path === "/register")) {
-        console.log("Access Denied: Already authenticated. Redirecting to dashboard.");
-        navigateTo("/tasks"); // Redirect to /tasks.
-        return; 
-    }
-
-    // --- DECISION PHASE: Determine which view and logic to execute ---
-    let viewPath;
-    let viewInitializer = null;
-
-    if (path === "/" || path === "/home") {
-        viewPath = routes["/"];
-    } else if (path === "/login") {
-        viewPath = routes["/login"];
-        viewInitializer = initializeLoginForm;
-    } else if (path === "/register") {
-        viewPath = routes["/register"];
-        viewInitializer = initializeRegisterForm;
-    } else if (path === "/tasks") {
-        // The /tasks route depends on the user"s role.
-        if (isAuth && user.role === "administrator") {
-            viewPath = routes["/tasks"];
-            viewInitializer = () => initializeTasksView(user);
-        } else if (isAuth && user.role === "student") {
-            // A student accessing /tasks is redirected to their own dashboard.
-            navigateTo("/student-dashboard");
-            return; // Stop here so the new navigation can take over.
-        }
-    } else if (path === "/student-dashboard") {
-        //  Only students are allowed to access this page.
-        if (isAuth && user.role === "student") {
-            viewPath = routes["/student-dashboard"];
-            viewInitializer = () => initializeStudentDashboard(user);
-        } else {
-            // Any other user is redirected accordingly
-            navigateTo(isAuth ? "/tasks" : "/login");
-            return;
-        }
-    } else {
-        // If no route matches, show the 404 page..
-        viewPath = routes["/404"];
-    }
-
-    // --- EXECUTION PHASE: Load the view and associated logic ---
-    await loadView(viewPath);
-    
-    // If we previously assigned an initializer, run it now.
-    if (viewInitializer) {
-        viewInitializer();
-    }
-
-    //  Add the Logout button dynamically ---
-    if (isAuth) {
-        // Check if it already exists to avoid adding it on every navigation.
-        if (!document.getElementById("logout-btn")) {
-            const logoutBtn = document.createElement("button");
-            logoutBtn.id = "logout-btn";
-            logoutBtn.textContent = "Logout";
-            logoutBtn.addEventListener("click", () => {
-                logOut();
-                renderNavbar();
-                navigateTo("/login");
-            });
-            // Add it to the top of the main container.
-            appRoot.prepend(logoutBtn);
-        }
-    }
-}
-
-/**
- * Renders the main navigation bar based on authentication status and user role.
+ * Updates the navigation bar links based on the user's authentication status and role.
  */
 function renderNavbar() {
-    const nav = document.getElementById('main-nav');
+    const nav = document.getElementById("main-nav");
     if (!nav) return;
 
     const isAuth = isAuthenticated();
     const user = getCurrentUser();
-
-    let navLinks = ''; // Start with an empty string of HTML links
+    let navLinks = ""; // Start with an empty string of HTML links
 
     if (isAuth) {
         // --- Navigation for LOGGED-IN users ---
         navLinks += `<a href="/">Home</a> | `;
-        
-        if (user.role === 'administrator') {
+        if (user.role === "administrator") {
             navLinks += `<a href="/tasks">Course Management</a> | `;
-        } else if (user.role === 'student') {
+        } else if (user.role === "student") {
             navLinks += `<a href="/student-dashboard">My Dashboard</a> | `;
         }
-
-        // The logout button is handled separately by handleLocation
-        // but you could also add a placeholder here if you wanted.
-
     } else {
         // --- Navigation for GUEST users ---
-        navLinks += `<a href="/">Home</a> | `;
-        navLinks += `<a href="/login">Login</a> | `;
-        navLinks += `<a href="/register">Register</a>`;
+        navLinks = `<a href="/">Home</a> | <a href="/login">Login</a> | <a href="/register">Register</a>`;
     }
-
     nav.innerHTML = navLinks;
 }
 
-/** 
- * Navigates to a new path and updates the view.
- * @param {string} path - The path to navigate to (e.g., "/tasks").
+/**
+ * Adds a logout button to the top of the app container if it doesn't already exist.
  */
-export function navigateTo(path) {
-    // Use the History API to the change the URL without a full page reload.
-    window.history.pushState({}, "", path); 
-    // Manually call the location handler to render the new view. 
-    handleLocation();
+function addLogoutButton() {
+    if (document.getElementById("logout-btn")) return; // Prevent duplicates
+
+    const logoutBtn = document.createElement("button");
+    logoutBtn.id = "logout-btn";
+    logoutBtn.textContent = "Logout";
+    logoutBtn.addEventListener("click", () => {
+        logOut();
+        // After logging out, the navbar needs to be updated immediately
+        renderNavbar();
+        navigateTo("/login");
+    });
+    // Prepending ensures it appears at the top of the main content area
+    appRoot.prepend(logoutBtn);
 }
 
 /**
- * Initializes the router by setting up event listeners.
+ * Toggles a specific CSS class on the body element for dashboard views.
+ * This allows for custom styling on wider layout pages.
+ * @param {string} path - The current window path.
  */
-// export function initializeRouter() {
-//     // Listen for clicks on any link in the document.
-//     document.addEventListener("click", e => {
-//         // Check if the clicked element is a link.
-//         if (e.target.matches("a[href]")) {
-//             e.preventDefault(); // Prevent the default browser navigation (full reload).
-//             navigateTo(e.target.getAttribute("href")); // Use our custom navigation.
-//         }
-//     });
-
-//     // Handle browser back/forward buttons.
-//     window.addEventListener("popstate", handleLocation);
-
-//     // Use DOMContentLoaded to ensure the app-root element exists before we start
-//     document.addEventListener("DOMContentLoaded", () => {
-//         handleLocation();
-//     });
-// }
-// INITIALIZE NOW EN MAIN.JS
-
-
+function updateBodyClass(path) {
+    const body = document.body;
+    if (path === "/tasks" || path === "/student-dashboard") {
+        body.classList.add("dashboard-view");
+    } else {
+        body.classList.remove("dashboard-view");
+    }
+}
